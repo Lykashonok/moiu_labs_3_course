@@ -31,13 +31,13 @@ func Min(array []float64) float64 {
 }
 
 func matMulVec(m *mat.Dense, v *mat.VecDense) *mat.VecDense {
-	sum := float64(0)
 	r, c := m.Dims()
+	sum := 0.0
 	vector := mat.NewVecDense(c, nil)
-	for i := 0; i < r; i++ {
+	for i := 0; i < c; i++ {
 		sum = 0
-		for j := 0; j < c; j++ {
-			sum += m.At(i, j) * v.At(i, 0)
+		for j := 0; j < r; j++ {
+			sum += v.AtVec(i) * m.At(i, j)
 		}
 		vector.SetVec(i, sum)
 	}
@@ -139,7 +139,8 @@ func invOptimized(matrix, matrixInv *mat.Dense, vector *mat.VecDense, index int)
 	// step 1
 	AInv := mat.NewDense(n, n, make([]float64, n*n)) // clonning matrixInv
 	AInv.CloneFrom(matrixInv)
-	l := matMulVec(AInv, vector)
+	l := mat.VecDenseCopyOf(vector)
+	l.MulVec(AInv, vector)
 	if l.At(index, 0) == 0 {
 		panic("Matrix is uninversable!!!")
 	}

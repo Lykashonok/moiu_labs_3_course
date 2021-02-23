@@ -69,20 +69,20 @@ func readOptimizationProblem(input string, varNumber, conditionsNumber int) (*ma
 }
 
 // SimplexMainPhase - solves optimization problem in canonical form
-func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, freeMembersVector, baselineVector, baselineIndexes *mat.VecDense, optimizedMultiplication bool) *mat.VecDense {
+func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBaselineMatrix *mat.Dense, baselineVector, baselineIndexes *mat.VecDense, lowestIndex int, optimizedInv bool) *mat.VecDense {
 	conditionsNumber, varNumber := conditionsMatrix.Dims()
 
-	// creating baselineMatrix and inverse it (first iteration)
 	baselineMatrix := mat.NewDense(conditionsNumber, conditionsNumber, nil)
 	for i := 0; i < conditionsNumber; i++ {
 		baselineMatrix.SetCol(i, RawVector(conditionsMatrix.ColView(int(baselineIndexes.AtVec(i)))))
 	}
 
-	inversedBaselineMatrix := mat.DenseCopyOf(baselineMatrix)
-	if optimizedMultiplication {
-		inversedBaselineMatrix.Inverse(baselineMatrix)
+	inversedBaselineMatrixTmp := mat.NewDense(conditionsNumber, conditionsNumber, nil)
+	if optimizedInv {
+		inversedBaselineMatrixTmp.Copy(invOptimized(baselineMatrix, inversedBaselineMatrix, mat.VecDenseCopyOf(conditionsMatrix.ColView(int(baselineIndexes.AtVec(lowestIndex)))), lowestIndex))
 	} else {
 		inversedBaselineMatrix.Inverse(baselineMatrix)
+		inversedBaselineMatrixTmp.Copy(inversedBaselineMatrix)
 	}
 
 	// finding components of scalesVector
@@ -92,15 +92,9 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, f
 	}
 
 	// potentials vector = components * inversed baselineMatrix
-	potentials := vecMulMat(components, inversedBaselineMatrix)
+	potentials := vecMulMat(components, inversedBaselineMatrixTmp)
 
-	// score vector = potentials vector * baselineMatrix - scalesVector
 	scoreVector := vecMulMat(potentials, conditionsMatrix)
-	// scoreVector := mat.NewVecDense(varNumber, nil)
-	// for i := 0; i < conditionsNumber; i++ {
-	// 	scoreVector.SetVec(int(baselineIndexes.AtVec(i)), scoreVectorShifted.AtVec(i)) // !! or scoreVector.SetVec(i, scoreVectorShifted.AtVec(i)) !!
-	// 	// scoreVector.SetVec(i, scoreVectorShifted.AtVec(i))
-	// }
 	scoreVector.AddScaledVec(scoreVector, -1, scalesVector)
 
 	// find nonBaseline indexes
@@ -114,9 +108,11 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, f
 
 	// First exit condition, if current case is optimal
 	isOptimalCase := true
-	for i := 0; i < nonBaseLineIndexes.Len(); i++ {
-		if scoreVector.AtVec(int(nonBaseLineIndexes.AtVec(i))) < 0 {
+	lowestIndex = 0
+	for i := 0; i < scoreVector.Len(); i++ {
+		if scoreVector.AtVec(i) < 0 {
 			isOptimalCase = false
+			lowestIndex = i
 			break
 		}
 	}
@@ -126,9 +122,9 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, f
 	}
 
 	// The lowest nonBaseline index (Blends rule) for vector z
-	lowestIndex := int(nonBaseLineIndexes.AtVec(0))
-	conditionsColumn := mat.NewVecDense(conditionsNumber, RawVector(conditionsMatrix.ColView(lowestIndex)))
-	zVector := matMulVec(inversedBaselineMatrix, conditionsColumn)
+	var conditionsColumn = conditionsMatrix.ColView(lowestIndex)
+	var zVector = mat.VecDenseCopyOf(conditionsColumn)
+	zVector.MulVec(inversedBaselineMatrixTmp, conditionsColumn)
 
 	// Theta
 	minTheta, minThetaIndex, thetaValue := math.Inf(+1), 0, 0.0
@@ -154,8 +150,8 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, f
 
 	// creating new baselineVector (new baseline case)
 	newBaselineVector := mat.NewVecDense(varNumber, nil)
-	// First value equals to theta, others following the formula
-	newBaselineVector.SetVec(int(baselineIndexes.AtVec(0)), minTheta)
+	// minThetaIndex value equals to theta, others following the formula
+	newBaselineVector.SetVec(int(baselineIndexes.AtVec(minThetaIndex)), minTheta)
 	for i := 0; i < conditionsNumber; i++ {
 		newValue := 0.0
 		if i != minThetaIndex {
@@ -167,14 +163,14 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix *mat.Dense, f
 	}
 
 	// Run again with new baseline vector and new baseline indexes ()
-	return SimplexMainPhase(scalesVector, conditionsMatrix, freeMembersVector, newBaselineVector, newBaselineIndexes, true)
+	return SimplexMainPhase(scalesVector, conditionsMatrix, inversedBaselineMatrixTmp, newBaselineVector, newBaselineIndexes, minThetaIndex, true)
 }
 
 func main() {
-	a, b := 5, 3
-	// a, b := 6, 4
-	// matPrint(vecMulMat(mat.NewVecDense(2, []float64{1, 2}), mat.NewDense(2, 3, []float64{3, 4, 5, 6, 7, 8})))
-	scalesVector, conditionsMatrix, freeMembersVector, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", a, b)
-	result := SimplexMainPhase(scalesVector, conditionsMatrix, freeMembersVector, baselineVector, baselineIndexes, false)
+	// a, b := 5, 3
+	a, b := 6, 4
+
+	scalesVector, conditionsMatrix, _, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", a, b)
+	result := SimplexMainPhase(scalesVector, conditionsMatrix, mat.NewDense(b, b, nil), baselineVector, baselineIndexes, 0, false)
 	matPrint(result)
 }
