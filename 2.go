@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"math"
 	"strconv"
@@ -20,7 +21,7 @@ func readVector(lines []string, number int) ([]string, *mat.VecDense) {
 }
 
 // Must be in canonical form
-func readOptimizationProblem(input string, varNumber, conditionsNumber int) (*mat.VecDense, *mat.Dense, *mat.VecDense, *mat.VecDense, *mat.VecDense) {
+func readOptimizationProblem(input string, varNumber, conditionsNumber int, preparationPhase bool) (*mat.VecDense, *mat.Dense, *mat.VecDense, *mat.VecDense, *mat.VecDense) {
 	var (
 		scalesVector      *mat.VecDense
 		conditionsMatrix  []float64
@@ -50,10 +51,14 @@ func readOptimizationProblem(input string, varNumber, conditionsNumber int) (*ma
 	lines = lines[conditionsNumber:]
 
 	//freeMembersVector
+	freeMembersVector = mat.NewVecDense(conditionsNumber, nil)
 	lines, freeMembersVector = readVector(lines, conditionsNumber)
 
 	//baselineVector
-	lines, baselineVector = readVector(lines, varNumber)
+	baselineVector = mat.NewVecDense(varNumber, nil)
+	if preparationPhase == false {
+		lines, baselineVector = readVector(lines, varNumber)
+	}
 
 	//determining baseline indexes
 	baselineIndexes = mat.NewVecDense(conditionsNumber, nil)
@@ -69,20 +74,26 @@ func readOptimizationProblem(input string, varNumber, conditionsNumber int) (*ma
 }
 
 // SimplexMainPhase - solves optimization problem in canonical form
-func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBaselineMatrix *mat.Dense, baselineVector, baselineIndexes *mat.VecDense, lowestIndex int, optimizedInv bool) *mat.VecDense {
+func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBaselineMatrix *mat.Dense, baselineVector, baselineIndexes *mat.VecDense, lowestIndex int, iteration int) (*mat.VecDense, *mat.VecDense) {
 	conditionsNumber, varNumber := conditionsMatrix.Dims()
 
+	// Building baselineMatrix from baselineIndexes of conditionsMatrix
 	baselineMatrix := mat.NewDense(conditionsNumber, conditionsNumber, nil)
 	for i := 0; i < conditionsNumber; i++ {
 		baselineMatrix.SetCol(i, RawVector(conditionsMatrix.ColView(int(baselineIndexes.AtVec(i)))))
 	}
+	fmt.Printf("New baseline vector\n")
+	matPrint(baselineVector)
+	matPrint(baselineMatrix)
 
 	inversedBaselineMatrixTmp := mat.NewDense(conditionsNumber, conditionsNumber, nil)
-	if optimizedInv {
-		inversedBaselineMatrixTmp.Copy(invOptimized(baselineMatrix, inversedBaselineMatrix, mat.VecDenseCopyOf(conditionsMatrix.ColView(int(baselineIndexes.AtVec(lowestIndex)))), lowestIndex))
-	} else {
+	if iteration == 0 {
+		// First iteration. Inversing via gonums mat.Inverse()
 		inversedBaselineMatrix.Inverse(baselineMatrix)
 		inversedBaselineMatrixTmp.Copy(inversedBaselineMatrix)
+	} else {
+		// Other operations. Inversing via invOptimized() from 1.go file from 1 lab
+		inversedBaselineMatrixTmp.Copy(invOptimized(baselineMatrix, inversedBaselineMatrix, mat.VecDenseCopyOf(conditionsMatrix.ColView(int(baselineIndexes.AtVec(lowestIndex)))), lowestIndex))
 	}
 
 	// finding components of scalesVector
@@ -93,10 +104,8 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBase
 
 	// potentials vector = components * inversed baselineMatrix
 	potentials := vecMulMat(components, inversedBaselineMatrixTmp)
-
 	scoreVector := vecMulMat(potentials, conditionsMatrix)
 	scoreVector.AddScaledVec(scoreVector, -1, scalesVector)
-
 	// find nonBaseline indexes
 	nonBaseLineIndexes, j := mat.NewVecDense(varNumber-conditionsNumber, nil), 0
 	for i := 0; i < conditionsNumber; i++ {
@@ -118,8 +127,14 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBase
 	}
 	if isOptimalCase {
 		// THIS IS OPTIMAL CASE
-		return baselineVector
+		fmt.Printf("every deltas element of \n")
+		matPrint(scoreVector)
+		fmt.Printf("> 0, baseline vector is optimal case \n")
+		return baselineVector, baselineIndexes
 	}
+	fmt.Printf("scoreVector[%v] of delta\n", lowestIndex+1)
+	matPrint(scoreVector)
+	fmt.Printf("%v < 0\n", scoreVector.AtVec(lowestIndex))
 
 	// The lowest nonBaseline index (Blends rule) for vector z
 	var conditionsColumn = conditionsMatrix.ColView(lowestIndex)
@@ -162,15 +177,26 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBase
 		newBaselineVector.SetVec(int(baselineIndexes.AtVec(i)), newValue)
 	}
 
+	fmt.Printf("New baseline vector on %v iteration is\n", iteration+1)
+	// matPrint(newBaselineVector)
+
 	// Run again with new baseline vector and new baseline indexes ()
-	return SimplexMainPhase(scalesVector, conditionsMatrix, inversedBaselineMatrixTmp, newBaselineVector, newBaselineIndexes, minThetaIndex, true)
+	return SimplexMainPhase(scalesVector, conditionsMatrix, inversedBaselineMatrixTmp, newBaselineVector, newBaselineIndexes, minThetaIndex, iteration+1)
 }
 
 func main() {
-	// a, b := 5, 3
-	a, b := 6, 4
-
-	scalesVector, conditionsMatrix, _, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", a, b)
-	result := SimplexMainPhase(scalesVector, conditionsMatrix, mat.NewDense(b, b, nil), baselineVector, baselineIndexes, 0, false)
+	c, r := 6, 4
+	scalesVector, conditionsMatrix, _, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", c, r, false)
+	fmt.Printf("scales vector is\n")
+	matPrint(scalesVector)
+	fmt.Printf("matrix of conditions is\n")
+	matPrint(conditionsMatrix)
+	fmt.Printf("first baseline vector is\n")
+	matPrint(baselineVector)
+	fmt.Printf("and it's baseline indexes\n")
+	matPrint(baselineIndexes)
+	result, indexes := SimplexMainPhase(scalesVector, conditionsMatrix, mat.NewDense(r, r, nil), baselineVector, baselineIndexes, 0, 0)
+	fmt.Printf("result is\n")
 	matPrint(result)
+	matPrint(indexes)
 }
