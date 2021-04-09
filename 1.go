@@ -19,6 +19,27 @@ func Find(array []float64, value float64) bool {
 	return false
 }
 
+// Fund - fund pos in array
+func FindPos(array []Pos, value Pos) (bool, int) {
+	for i, curr := range array {
+		if curr == value {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
+// CountPos - count pos in array
+func CountPos(array []Pos, value Pos) int {
+	res := 0
+	for _, curr := range array {
+		if curr == value {
+			res++
+		}
+	}
+	return res
+}
+
 // Min - find min element in array
 func Min(array []float64) float64 {
 	min := array[0]
@@ -44,19 +65,19 @@ func matMulVec(m *mat.Dense, v *mat.VecDense) *mat.VecDense {
 	return vector
 }
 
-func vecMulMat(v *mat.VecDense, m *mat.Dense) *mat.VecDense {
-	r, c := m.Dims()
-	sum := 0.0
-	vector := mat.NewVecDense(c, nil)
-	for i := 0; i < c; i++ {
-		sum = 0
-		for j := 0; j < r; j++ {
-			sum += v.AtVec(j) * m.At(j, i)
-		}
-		vector.SetVec(i, sum)
-	}
-	return vector
-}
+// func vecMulMat(v *mat.VecDense, m *mat.Dense) *mat.VecDense {
+// 	r, c := m.Dims()
+// 	sum := 0.0
+// 	vector := mat.NewVecDense(c, nil)
+// 	for i := 0; i < c; i++ {
+// 		sum = 0
+// 		for j := 0; j < r; j++ {
+// 			sum += v.AtVec(j) * m.At(j, i)
+// 		}
+// 		vector.SetVec(i, sum)
+// 	}
+// 	return vector
+// }
 
 // RawVector - return mat.Vector as []float64
 func RawVector(v mat.Vector) []float64 {

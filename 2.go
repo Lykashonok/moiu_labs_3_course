@@ -178,25 +178,25 @@ func SimplexMainPhase(scalesVector *mat.VecDense, conditionsMatrix, inversedBase
 	}
 
 	fmt.Printf("New baseline vector on %v iteration is\n", iteration+1)
-	// matPrint(newBaselineVector)
+	matPrint(newBaselineVector)
 
 	// Run again with new baseline vector and new baseline indexes ()
 	return SimplexMainPhase(scalesVector, conditionsMatrix, inversedBaselineMatrixTmp, newBaselineVector, newBaselineIndexes, minThetaIndex, iteration+1)
 }
 
-func main() {
-	c, r := 6, 4
-	scalesVector, conditionsMatrix, _, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", c, r, false)
-	fmt.Printf("scales vector is\n")
-	matPrint(scalesVector)
-	fmt.Printf("matrix of conditions is\n")
-	matPrint(conditionsMatrix)
-	fmt.Printf("first baseline vector is\n")
-	matPrint(baselineVector)
-	fmt.Printf("and it's baseline indexes\n")
-	matPrint(baselineIndexes)
-	result, indexes := SimplexMainPhase(scalesVector, conditionsMatrix, mat.NewDense(r, r, nil), baselineVector, baselineIndexes, 0, 0)
-	fmt.Printf("result is\n")
-	matPrint(result)
-	matPrint(indexes)
-}
+// func main() {
+// 	c, r := 6, 4
+// 	scalesVector, conditionsMatrix, _, baselineVector, baselineIndexes := readOptimizationProblem("input.txt", c, r, false)
+// 	fmt.Printf("scales vector is\n")
+// 	matPrint(scalesVector)
+// 	fmt.Printf("matrix of conditions is\n")
+// 	matPrint(conditionsMatrix)
+// 	fmt.Printf("first baseline vector is\n")
+// 	matPrint(baselineVector)
+// 	fmt.Printf("and it's baseline indexes\n")
+// 	matPrint(baselineIndexes)
+// 	result, indexes := SimplexMainPhase(scalesVector, conditionsMatrix, mat.NewDense(r, r, nil), baselineVector, baselineIndexes, 0, 0)
+// 	fmt.Printf("result is\n")
+// 	matPrint(result)
+// 	matPrint(indexes)
+// }

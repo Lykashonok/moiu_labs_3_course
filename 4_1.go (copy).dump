@@ -1,0 +1,87 @@
+package main
+
+import (
+	"io/ioutil"
+	"strconv"
+	"strings"
+
+	"gonum.org/v1/gonum/mat"
+)
+
+type Sign int
+
+const (
+	MIN Sign = iota
+	MAX
+	LESSEQUAL
+	MOREEQUAL
+	EQUAL
+	RATIONAL
+)
+
+var signs = []string{
+
+	MIN:       "min",
+	MAX:       "max",
+	LESSEQUAL: "<=",
+	MOREEQUAL: ">=",
+	EQUAL:     "=",
+	RATIONAL:  "r",
+}
+
+var signvalues = map[string]Sign{
+	"min": MIN,
+	"max": MAX,
+	"<=":  LESSEQUAL,
+	">=":  MOREEQUAL,
+	"=":   EQUAL,
+	"r":   RATIONAL,
+}
+
+func (s Sign) String() string {
+	return signs[s]
+}
+
+type VecSign struct {
+	vec  *mat.VecDense
+	sign Sign
+}
+
+func readDoubleOptimizationProblem(input string, varNumber, conditionsNumber int) (*VecSign, *mat.Dense, *mat.VecDense, []Sign) {
+	str, err := ioutil.ReadFile(input)
+	if err != nil {
+		panic(err)
+	}
+	lines := strings.Split(string(str), "\n")
+	scalesVector, freeVector := &VecSign{mat.NewVecDense(varNumber, nil), MIN}, mat.NewVecDense(varNumber, nil)
+	lines, scalesVector = readVecSign(lines, varNumber)
+	conditionsMatrix := mat.NewDense(conditionsNumber, varNumber, nil)
+	conditionsSign, variableSigns := make([]Sign, conditionsNumber), make([]Sign, conditionsNumber)
+	for i := 0; i < conditionsNumber; i++ {
+		newVecSign := &VecSign{mat.NewVecDense(varNumber, nil), MIN}
+		lines, newVecSign = readVecSign(lines, varNumber)
+		conditionsSign[i] = newVecSign.sign
+		conditionsMatrix.SetRow(i, RawVector(newVecSign.vec))
+	}
+	lines, freeVector = readVector(lines, conditionsNumber)
+	for i := 0; i < conditionsNumber; i++ {
+		lines, variableSigns[i] = readVariableSign(lines)
+	}
+	return scalesVector, conditionsMatrix, freeVector, variableSigns
+}
+
+func readVariableSign(lines []string) ([]string, Sign) {
+	a := strings.Split(lines[0], " ")[1]
+	return lines[1:], signvalues[a]
+}
+
+func readVecSign(lines []string, varNumber int) ([]string, *VecSign) {
+	s := lines[0]
+	values, vecSign := strings.Split(s, " "), VecSign{mat.NewVecDense(varNumber, nil), MIN}
+	for i := 0; i < varNumber; i++ {
+		value, _ := strconv.ParseFloat(values[i], 64)
+		vecSign.vec.SetVec(i, value)
+	}
+	vecSign.sign = signvalues[values[varNumber]]
+	return lines[1:], &vecSign
+}
